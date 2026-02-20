@@ -58,19 +58,38 @@ def tr_prictur_path(line):
         line=ast.literal_eval(line)
         writelines_file(tmp_file_path,line)
     
-def remove_file(dir_path):
-    files=os.listdir(dir_path)
-    if len(files)!=0:
-        for file in files:
-            if os.path.exists(f"{dir_path+file}"):
-                os.remove(f"{dir_path+file}")
+def clear_directory(dir_path):
+    """
+    清空指定目录下的所有文件和子目录，保留目录本身。
+    如果目录为空，则不做任何操作。
+    """
+    if not os.path.isdir(dir_path):
+        raise NotADirectoryError(f"路径不存在或不是目录: {dir_path}")
+
+    for item in os.listdir(dir_path):
+        item_path = os.path.join(dir_path, item)
+        try:
+            if os.path.isfile(item_path) or os.path.islink(item_path):
+                os.unlink(item_path)          # 删除文件或符号链接
+            elif os.path.isdir(item_path):
+                shutil.rmtree(item_path)      # 递归删除子目录
+        except Exception as e:
+            print(f"删除失败 {item_path}: {e}")
 
 # print(len(already_num))
 if __name__=="__main__":
+    
     destetion_pictur_path=r"C:\Users\16531\Desktop\study\picturs\\"
     pictur_base_path=r"C:\\Users\\16531\\AppData\\Roaming\\Typora\\typora-user-images\\"
-    text_name_path=r"C:\Users\16531\Desktop\study\daily_logs\2026-02-20.md"
+    text_name_path=input("请给我需要处理文件的绝对路径：")
+    # text_name_path=text_name_path[1:-2]
+    text_name_path=text_name_path.split('"')[1]
+    # print(text_name_path)
     tmp_file_path=r"C:\Users\16531\Desktop\study\daily_logs\new.md"
+    picturs=os.listdir(r"C:\Users\16531\Desktop\study\picturs")
+    if picturs!=[]:
+        last_picturs_id=int(os.listdir(r"C:\Users\16531\Desktop\study\picturs")[-1].split('.')[0])
+
 
 
     content=read_file(text_name_path)
@@ -79,11 +98,17 @@ if __name__=="__main__":
 
 
     if len(already_num)!=0:
-        last_num=int(already_num[-1])
-        lines=readlines_file(text_name_path)
-        for line in lines:
-            tr_prictur_path(line)
-        # print(last_num)
+        if int(already_num[-1])<last_picturs_id:
+            last_num=int(last_picturs_id)
+            lines=readlines_file(text_name_path)
+            for line in lines:
+                tr_prictur_path(line)
+            # print(last_num)
+        else:
+            last_num=int(already_num[-1])
+            lines=readlines_file(text_name_path)
+            for line in lines:
+                tr_prictur_path(line)
 
     elif len(already_num)==0:
         last_num=int(str(os.listdir(destetion_pictur_path)[-1]).split('.')[0])
@@ -95,5 +120,8 @@ if __name__=="__main__":
         print('no')
     os.remove(text_name_path)
     os.rename(tmp_file_path,text_name_path)
-    remove_file(r"C:\Users\16531\AppData\Roaming\Typora\typora-user-images")
-    remove_file(r"C:\Users\16531\Pictures\PixPinAutoSave")
+    clear_directory(r"C:\\Users\\16531\\AppData\\Roaming\\Typora\\typora-user-images")
+    clear_directory(r"C:\\Users\\16531\\Pictures\\PixPinAutoSave")
+        #直接给项目路径，然后完整便利出*.md文件，结合当前日期，是则进行修改排查。
+
+
