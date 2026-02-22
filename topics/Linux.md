@@ -1,5 +1,3 @@
-
-
 ### Linux
 
 #### 文件目录
@@ -361,7 +359,240 @@ echo $value | awk '{sum=0;for(i=1;i<=NF;i++) sum+=$i} END{print sum/NF}'
 
 ##### 2. awk 强大的文本处理工具，按列处理
 
+![](../picturs/71.png)
 
+```bash
+awk 'BEGIN{初始化或者设置表头：处理前}{处理中}END{处理后}'
+```
+
+- ###### -v 传入外部变量
+
+-v 定义的变量在awk处理之前就已经赋值，可以解决“脚本外部动态配置阈值”，可以在BEGIN或任何规则中使用。
+
+```bash
+#!/bin/bash
+
+limit=500
+# awk -F '|' -v limit1=$limit '{print $3}' test_execution.log | grep -Poi "duration=\K\d+" | awk '$1>limit1{print $0}'
+awk -F '|' '{print $3}' test_execution.log | grep -Poi "duration=\K\d+" | awk -v limit1=$limit '$1>limit1{print $0}'
+# -v 传递外部变量需要定义一个变量赋予值才行: -v inner_var=$external_var
+# 明确是哪一个awk使用，则-v在那一部分
+# 多个变量，则多个-v
+
+```
+
+- ###### $0 整行
+
+```bash
+[root@Elson dirs]# awk -F '|' '{print $3}' test_execution.log | grep -Poi "duration=\K\d+" | awk '$1>500'
+3005
+5002
+890
+[root@Elson dirs]# awk -F '|' '{print $3}' test_execution.log | grep -Poi "duration=\K\d+" | awk '$1>500{print $0}'
+3005
+5002
+890
+[root@Elson dirs]# cat test_execution.log | head -n1
+=== Test Suite Started at 2024-02-22 09:00:00 ===
+[root@Elson dirs]# cat test_execution.log | head -n2
+=== Test Suite Started at 2024-02-22 09:00:00 ===
+[TestCase] TC001_UserLogin | Status=PASSED | Duration=125ms | ThreadID=5 | IP=192.168.1.101
+```
+
+- ###### awk 'BEGIN{1次} {逐行遍历，主要核心代码} END{1次}'
+
+```bash
+#!/bin/bash
+awk -F ',' '
+BEGIN{
+        sum=0;
+        count=0;
+        max_time=0;
+        print "==========性能测试报告==========";
+        print "接口状态      |    耗时(ms) | 状态";
+        print "--------------------------------";
+}
+NR>=2 {
+        sum+=$2;
+        count+=1;
+        # print $3 " | " $2 " | " 7;
+        printf "%-14s| %-10d | %-8s\n",$3,$2,$7
+        # printf "%-12s| %-10d | %-8s\n",$3 $2 $7
+}
+$2>max_time && NR>=2{
+        max_time=$2;
+}
+END{
+        print "--------------------------------";
+        print "请求总数：" count;
+        print "平均耗时：" sum/count;
+        print "最大耗时：" max_time;
+        print "==========报告结束=========="
+}
+
+' performance_result.csv
+
+# awk是指令，不是shell编程
+# BEGIN END 必须大写，他们括号里的内容只会执行一次
+# 主体块中的代码{}取决于有多少行，有多少行就会执行多少次
+# awk中的变量是直接变量名，非shell脚本带$，当然也有特俗的几个$1 $? $$ NR NF
+# 多个主体块{}之前可以有判断if ($1>100){主体块} 或者 简写：$1>100{}
+# 一个块中，多个语句使用;分隔
+# 多个条件使用&& || ! ()
+# print 要么空格间隔，要么逗号间隔值
+# printf "格式",v1,v2
+# 代码块的''必须如下
+# awk '
+#	code
+# ' file.log
+# 结果：
+[root@Elson dirs]# ./test01.sh
+==========性能测试报告==========
+接口状态      |    耗时(ms) | 状态
+--------------------------------
+Login         | 125        | true
+CreateOrder   | 3005       | false
+Payment       | 89         | true
+UpdateProfile | 45         | false
+Search        | 234        | true
+AddToCart     | 5002       | false
+Checkout      | 156        | true
+GetOrders     | 78         | true
+CancelOrder   | 890        | false
+Login         | 112        | true
+--------------------------------
+请求总数：10
+平均耗时：973.6
+最大耗时：5002
+==========报告结束==========
+```
+
+- ###### FS OFS FR OFR
+
+`awk` 的 **FS(列)、OFS、RS(行)、ORS** 是控制**输入输出格式**的四大核心变量，决定了 awk 如何"切割"和"拼接"数据。
+
+![](../picturs/72.png)
+
+```bash
+[root@Elson dirs]# awk -F',' '{print $3}' performance_result.csv
+label
+Login
+CreateOrder
+Payment
+UpdateProfile
+Search
+AddToCart
+Checkout
+GetOrders
+CancelOrder
+Login
+[root@Elson dirs]# awk -F',' 'BEGIN{FS="[,\t]"}{print $3}' performance_result.csv
+label
+Login
+CreateOrder
+Payment
+UpdateProfile
+Search
+AddToCart
+Checkout
+GetOrders
+CancelOrder
+Login
+# 使用正则来控制FS按列分割
+```
+
+```bash
+[root@Elson dirs]# awk -F',' 'BEGIN{FS="[,\t]";OFS="\t"}{print $3,$4}' performance_result.csv | head -n 3
+label   responseCode
+Login   200
+CreateOrder     500
+# 使用OFS来控制每一列之间的输出格式
+```
+
+```bash
+[root@Elson dirs]# awk 'BEGIN{RS=","}{print $0}' performance_result.csv  | head -n10
+timestamp
+elapsed
+label
+responseCode
+responseMessage
+threadName
+success
+bytes
+Latency
+1708580400000
+# 使用RS=","来进行分行。外层是'',内层是""
+```
+
+```bash
+[root@Elson dirs]# awk 'BEGIN{RS=",";ORS=","}{print $0}' performance_result.csv  | head -n5
+timestamp,elapsed,label,responseCode,responseMessage,threadName,success,bytes,Latency
+1708580400000,125,Login,200,OK,Thread-1,true,2048,120
+1708580400100,3005,CreateOrder,500,Internal Server Error,Thread-2,false,512,3000
+1708580400200,89,Payment,200,OK,Thread-3,true,1024,85
+1708580400300,45,UpdateProfile,500,Null Pointer,Thread-1,false,256,40
+# ORS="," 使得一列又拼接起来
+```
+
+- ###### task01
+
+提取所有 `TestCase#` 后面的用例 ID（如 TC001_UserLogin），要求只显示用例名，不显示 `TestCase#` 前缀
+
+```bash
+[root@Elson dirs]# awk '{print $2}' test_execution.log
+Test
+TC001_UserLogin
+TC002_CreateOrder
+TC003_PaymentProcess
+TC004_UpdateProfile
+TC005_Logout
+TC006_SearchProduct
+TC007_AddToCart
+TC008_Checkout
+TC009_GetOrderList
+TC010_CancelOrder
+Test
+# 默认是空格
+```
+
+- ###### task02
+
+计算每个线程（ThreadID）分别执行了多少个测试用例（提示：第5列 ThreadID=xx）
+
+```bash
+[root@Elson dirs]# awk -F '|' '/ThreadID=/{print $4}' test_execution.log | grep -iPo "=\K\d+" | sort -n | uniq -c
+      3 5
+      2 6
+      2 7
+      1 8
+      1 9
+      1 10
+# sort -n是按照数字排序
+# uniq -c左边是重复次数，右边是值
+```
+
+- ###### task03
+
+找出所有响应时间（Duration: xxxms），并转换成纯数字（去掉 ms），计算总和
+
+```bash
+[root@Elson dirs]# grep -ioP "duration=\K\d+" test_execution.log | awk 'BEGIN{sum=0;}{sum+=$1}END{print sum}'
+9691
+
+```
+
+- task04
+
+从 `api_test.json` 中提取 `case` 和 `duration` 字段，并生成 CSV 格式报告。
+
+```bash
+[root@Elson dirs]# awk -F ',' 'BEGIN{OFS=","}{print $3,$5}' api_test.json
+"case":"TC001","duration":125
+"case":"TC002","duration":3005
+"case":"TC003","duration":89
+"case":"TC004","duration":45
+"case":"TC005","duration":67
+```
 
 #### Linux 易错点
 
